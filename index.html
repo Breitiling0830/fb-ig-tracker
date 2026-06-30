@@ -382,6 +382,7 @@ let currentTab='overview',editMode=false,charts={},selectedSlot=null,modalCtx=nu
 // ── UTILS ─────────────────────────────────────────────
 const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const fmtNum=n=>(n===null||n===undefined||n==='')? '—':n>=10000?(n/10000).toFixed(1)+'萬':Number(n).toLocaleString();
+const fmtDate=d=>{if(!d)return'—';const m=d.match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?m[2]+'/'+m[3]:d;};
 const fmtRate=r=>(r===null||r===undefined)?'—':(r*100).toFixed(2)+'%';
 const chgHtml=p=>(!p)?'':p>0?`<span class="up">▲${(p*100).toFixed(1)}%</span>`:`<span class="dn">▼${(Math.abs(p)*100).toFixed(1)}%</span>`;
 
@@ -833,7 +834,7 @@ function postCard(post,idx,month,plat,badges){
     </div>
     <div class="pcard-body">
       <div class="pcard-top">
-        <span class="pcard-date">${esc(p.date||'—')}</span>
+        <span class="pcard-date">${fmtDate(p.date)}</span>
         ${typeBadge(p.type)}
       </div>
       <div class="pcard-topic">${esc(p.topic)||'<span style="color:var(--dark3)">—</span>'}</div>
@@ -1110,7 +1111,11 @@ function renderOverview(){
 function buildEditForm(post,month,plat,idx,isNew){
   const isReel=(post.type||'').toLowerCase()==='reel'||(post.type||'')==='Reel';
   const typeOpts=['Reel','多圖輪播','單圖','純文字'].map(t=>`<option value="${t}"${(post.type||'')==t?' selected':''}>${t}</option>`).join('');
-  const dateVal=post.date?(post.date.match(/^\d{4}-\d{2}-\d{2}$/)? post.date:`${new Date().getFullYear()}-${(post.date||'').replace(/(\d+)\/(\d+)/,(m,mo,d)=>`${String(month.split('.')[0])}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`).split('-').slice(-3).join('-')}`):'';
+  const [mYr,mMo]=month.split('.');
+  const minDate=`${mYr}-${mMo}-01`;
+  const lastDay=new Date(parseInt(mYr),parseInt(mMo),0).getDate();
+  const maxDate=`${mYr}-${mMo}-${String(lastDay).padStart(2,'0')}`;
+  const dateVal=post.date?(post.date.match(/^\d{4}-\d{2}-\d{2}$/)? post.date:`${mYr}-${(post.date||'').replace(/(\d+)\/(\d+)/,(m,mo,d)=>`${mYr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`).split('-').slice(-3).join('-')}`):minDate;
 
   // auto-rate display
   const autoRate=()=>{
@@ -1128,7 +1133,7 @@ function buildEditForm(post,month,plat,idx,isNew){
     <div class="fgrid-3">
       <div>
         <div class="field-lbl">日期</div>
-        <input type="date" class="field-inp" id="ef_date" value="${dateVal}">
+        <input type="date" class="field-inp" id="ef_date" value="${dateVal}" min="${minDate}" max="${maxDate}">
       </div>
       <div>
         <div class="field-lbl">主題（選填）</div>
