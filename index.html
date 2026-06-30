@@ -417,7 +417,7 @@ const SYNC_URL='https://script.google.com/macros/s/AKfycbzgYnlBWxF0SbF_CSLA3M7KN
 function setSyncBadge(txt,cls){const el=document.getElementById('syncBadge');if(!el)return;el.textContent=txt;el.className='sync-badge'+(cls?' '+cls:'');}
 async function save(){
   // Note: images (user-pasted card photos) are stored locally only due to size limits
-  const payload={monthInsights:appData.monthInsights,postInsights:appData.postInsights,postOverrides:appData.postOverrides,extraMonths:appData.extraMonths,platformOverrides:appData.platformOverrides,monthlyTargets:appData.monthlyTargets,hiddenMonths:appData.hiddenMonths};
+  const payload={images:appData.images,monthInsights:appData.monthInsights,postInsights:appData.postInsights,postOverrides:appData.postOverrides,extraMonths:appData.extraMonths,platformOverrides:appData.platformOverrides,monthlyTargets:appData.monthlyTargets,hiddenMonths:appData.hiddenMonths};
   const json=JSON.stringify(payload);
   localStorage.setItem('anue_fb_ig_v2',json);
   showToast('儲存中…');
