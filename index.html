@@ -383,7 +383,7 @@ let currentTab='overview',editMode=false,charts={},selectedSlot=null,modalCtx=nu
 // ── UTILS ─────────────────────────────────────────────
 const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const fmtNum=n=>(n===null||n===undefined||n==='')? '—':n>=10000?(n/10000).toFixed(1)+'萬':Number(n).toLocaleString();
-const fmtDate=d=>{if(!d)return'—';const m=d.match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?m[2]+'/'+m[3]:d;};
+const fmtDate=d=>{if(!d)return'—';const m=d.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(!m)return d;const days='日一二三四五六';const dow=new Date(+m[1],+m[2]-1,+m[3]).getDay();return m[2]+'/'+m[3]+' ('+days[dow]+')'};
 const fmtRate=r=>(r===null||r===undefined)?'—':(r*100).toFixed(2)+'%';
 const chgHtml=p=>(!p)?'':p>0?`<span class="up">▲${(p*100).toFixed(1)}%</span>`:`<span class="dn">▼${(Math.abs(p)*100).toFixed(1)}%</span>`;
 
