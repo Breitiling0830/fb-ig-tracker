@@ -444,6 +444,7 @@ async function syncFromCloud(){
     const r=await fetch(SYNC_URL+'?t='+Date.now());
     const cloud=await r.json();
     if(cloud&&Object.keys(cloud).length>0){
+      if(cloud.images) appData.images=cloud.images;
       if(cloud.monthInsights) appData.monthInsights=cloud.monthInsights;
       if(cloud.postInsights) appData.postInsights=cloud.postInsights;
       if(cloud.postOverrides) appData.postOverrides=cloud.postOverrides;
