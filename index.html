@@ -415,7 +415,9 @@ function setMonthInsight(month,v){if(!appData.monthInsights)appData.monthInsight
 function getPostOverride(month,plat,idx,post){const k=`${month}_${plat}_${idx}`;const ov=appData.postOverrides?.[k];return ov?Object.assign({},post,ov):post}
 function setPostOverride(month,plat,idx,fields){if(!appData.postOverrides)appData.postOverrides={};const k=`${month}_${plat}_${idx}`;appData.postOverrides[k]=Object.assign(appData.postOverrides[k]||{},fields)}
 
-const SYNC_URL='https://script.google.com/macros/s/AKfycbzgYnlBWxF0SbF_CSLA3M7KNQkLMdwvB3TD3_a1HSEHlihXFtOrWKnRZAyCo5-zCB7E/exec';
+const JSONBIN_READ='https://api.jsonbin.io/v3/b/6a43816dda38895dfe14b909/latest';
+const JSONBIN_WRITE='https://api.jsonbin.io/v3/b/6a43816dda38895dfe14b909';
+const JSONBIN_KEY='$2a$10$Sq9trA6Prn6m.ISqfoYyfeJdnjc52VjFzqPzP0wFVYCRekgXgcBAW';
 function setSyncBadge(txt,cls){const el=document.getElementById('syncBadge');if(!el)return;el.textContent=txt;el.className='sync-badge'+(cls?' '+cls:'');}
 async function save(){
   // Note: images (user-pasted card photos) are stored locally only due to size limits
@@ -425,7 +427,7 @@ async function save(){
   showToast('儲存中…');
   setSyncBadge('同步中…','syncing');
   try{
-    await fetch(SYNC_URL,{method:'POST',body:json,headers:{'Content-Type':'text/plain;charset=UTF-8'}});
+    await fetch(JSONBIN_WRITE,{method:'PUT',body:json,headers:{'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY}});
     showToast('已同步 ✓');
     setSyncBadge('✓ 已同步','ok');
     setTimeout(()=>setSyncBadge(''),3000);
@@ -443,8 +445,9 @@ function showToast(msg){
 async function syncFromCloud(){
   setSyncBadge('同步中…','syncing');
   try{
-    const r=await fetch(SYNC_URL+'?t='+Date.now());
-    const cloud=await r.json();
+    const r=await fetch(JSONBIN_READ+'?t='+Date.now(),{headers:{'X-Master-Key':JSONBIN_KEY}});
+    const res=await r.json();
+    const cloud=res.record||{};
     if(cloud&&Object.keys(cloud).length>0){
       if(cloud.images) appData.images=cloud.images;
       if(cloud.monthInsights) appData.monthInsights=cloud.monthInsights;
