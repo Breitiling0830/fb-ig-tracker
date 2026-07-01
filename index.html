@@ -1135,7 +1135,7 @@ function renderOverview(){
   <div class="charts-grid">
     <div class="chart-card"><h3>瀏覽次數（自然）</h3><p>FB vs IG 每月自然瀏覽次數</p><canvas id="cViews" height="200"></canvas></div>
     <div class="chart-card"><h3>互動率</h3><p>互動數(含廣告) ÷ 觸及人數(含廣告)</p><canvas id="cRate" height="200"></canvas></div>
-    <div class="chart-card"><h3>粉絲人數</h3><p>FB vs IG 累積粉絲數</p><canvas id="cFol" height="200"></canvas></div>
+    <div class="chart-card"><h3>觸及人數（含廣告）</h3><p>FB vs IG 每月含廣告觸及人數</p><canvas id="cFol" height="200"></canvas></div>
     <div class="chart-card"><h3>互動數（含廣告）</h3><p>FB vs IG 每月含廣告互動數</p><canvas id="cInter" height="200"></canvas></div>
   </div>`;
   document.getElementById('main').innerHTML=html;
@@ -1145,7 +1145,7 @@ function renderOverview(){
     const defs=[
       {id:'cViews',fb:chartMonths.map(m=>getPlatformOv(m,'fb').organicViews),ig:chartMonths.map(m=>getPlatformOv(m,'ig').organicViews)},
       {id:'cRate',fb:chartMonths.map(m=>getRate(getPlatformOv(m,'fb'))),ig:chartMonths.map(m=>getRate(getPlatformOv(m,'ig')))},
-      {id:'cFol',fb:chartMonths.map(m=>getPlatformOv(m,'fb').followers),ig:chartMonths.map(m=>getPlatformOv(m,'ig').followers)},
+      {id:'cFol',fb:chartMonths.map(m=>getPlatformOv(m,'fb').adReach),ig:chartMonths.map(m=>getPlatformOv(m,'ig').adReach)},
       {id:'cInter',fb:chartMonths.map(m=>getPlatformOv(m,'fb').adInteractions),ig:chartMonths.map(m=>getPlatformOv(m,'ig').adInteractions)},
     ];
     defs.forEach(d=>{
