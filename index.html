@@ -82,6 +82,8 @@ body{background:var(--bg);color:var(--dark);font-family:'Noto Sans TC',-apple-sy
 .sync-badge.syncing{color:var(--teal-dk)}
 .sync-badge.ok{color:var(--green)}
 .sync-badge.err{color:#e53e3e}
+.btn-delete-post{background:none;border:1.5px solid #e53e3e;color:#e53e3e;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:background .15s}
+.btn-delete-post:hover{background:#fff5f5}
 .btn-delete-month{display:block;margin:32px auto 8px;background:none;border:1.5px solid #e53e3e;color:#e53e3e;border-radius:7px;padding:9px 28px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;transition:background .15s,color .15s}
 .btn-delete-month:hover{background:#e53e3e;color:#fff}
 .kpi-editable:hover{outline:2px solid var(--teal);outline-offset:-1px}
@@ -418,20 +420,71 @@ function setPostOverride(month,plat,idx,fields){if(!appData.postOverrides)appDat
 const JSONBIN_READ='https://api.jsonbin.io/v3/b/6a43816dda38895dfe14b909/latest';
 const JSONBIN_WRITE='https://api.jsonbin.io/v3/b/6a43816dda38895dfe14b909';
 const JSONBIN_KEY='$2a$10$Sq9trA6Prn6m.ISqfoYyfeJdnjc52VjFzqPzP0wFVYCRekgXgcBAW';
+function compressImage(dataUrl,maxW=800,quality=0.72){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      const scale=Math.min(1,maxW/img.width);
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.round(img.width*scale);
+      canvas.height=Math.round(img.height*scale);
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      resolve(canvas.toDataURL('image/jpeg',quality));
+    };
+    img.src=dataUrl;
+  });
+}
+const IMGBB_KEY='4b0359212ae9b4668cb166267de81ece';
+async function uploadToImgBB(dataUrl){
+  const base64=dataUrl.split(',')[1];
+  const fd=new FormData();
+  fd.append('key',IMGBB_KEY);
+  fd.append('image',base64);
+  const r=await fetch('https://api.imgbb.com/1/upload',{method:'POST',body:fd});
+  const j=await r.json();
+  if(!j.success)throw new Error('ImgBB upload failed');
+  return j.data.url;
+}
+
 function setSyncBadge(txt,cls){const el=document.getElementById('syncBadge');if(!el)return;el.textContent=txt;el.className='sync-badge'+(cls?' '+cls:'');}
+function mergeDeep(cloud,local){
+  // Merge shallow objects: cloud base + local overwrites same keys
+  const m={};
+  const keys=new Set([...Object.keys(cloud||{}),...Object.keys(local||{})]);
+  keys.forEach(k=>{
+    const cv=cloud?.[k],lv=local?.[k];
+    if(cv&&lv&&typeof cv==='object'&&!Array.isArray(cv)){m[k]=Object.assign({},cv,lv);}
+    else{m[k]=lv!==undefined?lv:cv;}
+  });
+  return m;
+}
 async function save(){
-  // Note: images (user-pasted card photos) are stored locally only due to size limits
-  const payload={images:appData.images,monthInsights:appData.monthInsights,postInsights:appData.postInsights,postOverrides:appData.postOverrides,extraMonths:appData.extraMonths,platformOverrides:appData.platformOverrides,monthlyTargets:appData.monthlyTargets,hiddenMonths:appData.hiddenMonths};
-  const json=JSON.stringify(payload);
-  localStorage.setItem('anue_fb_ig_v2',json);
+  const local={images:appData.images,monthInsights:appData.monthInsights,postInsights:appData.postInsights,postOverrides:appData.postOverrides,extraMonths:appData.extraMonths,platformOverrides:appData.platformOverrides,monthlyTargets:appData.monthlyTargets,hiddenMonths:appData.hiddenMonths};
   showToast('儲存中…');
   setSyncBadge('同步中…','syncing');
   try{
+    // Fetch latest cloud data first, merge, then write (prevents overwriting others' data)
+    const cr=await fetch(JSONBIN_READ+'?t='+Date.now(),{headers:{'X-Master-Key':JSONBIN_KEY}});
+    const cloudRaw=(await cr.json()).record||{};
+    const merged={
+      images:Object.assign({},cloudRaw.images||{},local.images),
+      monthInsights:mergeDeep(cloudRaw.monthInsights,local.monthInsights),
+      postInsights:mergeDeep(cloudRaw.postInsights,local.postInsights),
+      postOverrides:mergeDeep(cloudRaw.postOverrides,local.postOverrides),
+      extraMonths:mergeDeep(cloudRaw.extraMonths,local.extraMonths),
+      platformOverrides:mergeDeep(cloudRaw.platformOverrides,local.platformOverrides),
+      monthlyTargets:mergeDeep(cloudRaw.monthlyTargets,local.monthlyTargets),
+      hiddenMonths:local.hiddenMonths||cloudRaw.hiddenMonths||[],
+    };
+    const json=JSON.stringify(merged);
+    localStorage.setItem('anue_fb_ig_v2',json);
     await fetch(JSONBIN_WRITE,{method:'PUT',body:json,headers:{'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY}});
     showToast('已同步 ✓');
     setSyncBadge('✓ 已同步','ok');
     setTimeout(()=>setSyncBadge(''),3000);
   }catch(e){
+    const json=JSON.stringify(local);
+    localStorage.setItem('anue_fb_ig_v2',json);
     showToast('已儲存（未同步）');
     setSyncBadge('離線','err');
   }
@@ -443,6 +496,8 @@ function showToast(msg){
   setTimeout(()=>t.classList.remove('show'),2000);
 }
 async function syncFromCloud(){
+  // If we have unsynced local changes, push them first
+  if(window._pendingSync){window._pendingSync=false;save();return;}
   setSyncBadge('同步中…','syncing');
   try{
     const r=await fetch(JSONBIN_READ+'?t='+Date.now(),{headers:{'X-Master-Key':JSONBIN_KEY}});
@@ -726,16 +781,22 @@ document.addEventListener('paste',e=>{
   const item=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));
   if(!item)return;
   e.preventDefault();
+  const{month,plat,idx}=selectedSlot;
   const r=new FileReader();
-  r.onload=ev=>{
-    const url=ev.target.result;
-    const{month,plat,idx}=selectedSlot;
-    setImg(month,plat,idx,url);
-    // Update modal image immediately
+  r.onload=async ev=>{
     const slotEl=document.getElementById('modalImgSlot');
-    if(slotEl) slotEl.innerHTML=`<img class="modal-img" src="${url}"><div class="img-overlay">${IC.camera}<span>再次點擊重新貼上</span></div>`;
+    if(slotEl) slotEl.innerHTML=`<div style="padding:20px;color:var(--dark2);font-size:12px">上傳中…</div>`;
     clearSlot();
-    showToast('圖片已儲存');
+    try{
+      const compressed=await compressImage(ev.target.result);
+      const url=await uploadToImgBB(compressed);
+      setImg(month,plat,idx,url);
+      if(slotEl) slotEl.innerHTML=`<img class="modal-img" src="${url}"><div class="img-overlay">${IC.camera}<span>再次點擊重新貼上</span></div>`;
+      showToast('圖片已上傳 ✓');
+    }catch(e){
+      if(slotEl) slotEl.innerHTML=`<div style="padding:20px;color:var(--muted);font-size:12px">上傳失敗，請重試</div>`;
+      showToast('圖片上傳失敗');
+    }
   };
   r.readAsDataURL(item.getAsFile());
 });
@@ -746,15 +807,21 @@ function triggerImgUpload(e){
 document.getElementById('imgFileInput').addEventListener('change',e=>{
   const file=e.target.files[0];
   if(!file||!modalCtx)return;
+  const{month,plat,idx}=modalCtx;
   const r=new FileReader();
-  r.onload=ev=>{
-    const url=ev.target.result;
-    const{month,plat,idx}=modalCtx;
-    setImg(month,plat,idx,url);
+  r.onload=async ev=>{
     const slotEl=document.getElementById('modalImgSlot');
-    if(slotEl) slotEl.innerHTML=`<img class="modal-img" src="${url}"><div class="img-overlay">${IC.camera}<span>再次點擊重新貼上</span></div>`;
-    clearSlot();
-    showToast('圖片已儲存');
+    if(slotEl) slotEl.innerHTML=`<div style="padding:20px;color:var(--dark2);font-size:12px">上傳中…</div>`;
+    try{
+      const compressed=await compressImage(ev.target.result);
+      const url=await uploadToImgBB(compressed);
+      setImg(month,plat,idx,url);
+      if(slotEl) slotEl.innerHTML=`<img class="modal-img" src="${url}"><div class="img-overlay">${IC.camera}<span>再次點擊重新貼上</span></div>`;
+      showToast('圖片已上傳 ✓');
+    }catch(e){
+      if(slotEl) slotEl.innerHTML=`<div style="padding:20px;color:var(--muted);font-size:12px">上傳失敗，請重試</div>`;
+      showToast('圖片上傳失敗');
+    }
   };
   r.readAsDataURL(file);
   e.target.value='';
@@ -825,6 +892,8 @@ function makeDraggable(el){
 
 // ── POST CARD ─────────────────────────────────────────
 function postCard(post,idx,month,plat,badges){
+  const key=month+'_'+plat+'_'+idx;
+  if(appData.postOverrides?.[key]?._deleted) return '';
   const p=getPostOverride(month,plat,idx,post);
   const imgSrc=getImg(month,plat,idx);
   const b=badges[idx]||{};
@@ -1175,7 +1244,10 @@ function buildEditForm(post,month,plat,idx,isNew){
     <div class="modal-section-lbl">貼文洞察（選填）</div>
     <textarea class="insight-inp" id="ef_insight" style="min-height:65px">${esc(getPostInsight(month,plat,idx,post.insight))}</textarea>
     <div style="margin-top:12px">
-      <button class="btn-save" onclick="${isNew?`confirmNewPost('${month}','${plat}')`:`savePostEdits('${month}','${plat}',${idx})`}">${IC.check} 儲存</button>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
+        <button class="btn-save" onclick="${isNew?`confirmNewPost('${month}','${plat}')`:`savePostEdits('${month}','${plat}',${idx})`}">${IC.check} 儲存</button>
+        ${!isNew?`<button class="btn-delete-post" onclick="deletePost('${month}','${plat}',${idx})" title="刪除貼文">🗑 刪除</button>`:''}
+      </div>
     </div>`;
 }
 
@@ -1279,8 +1351,36 @@ function savePostEdits(month,plat,idx){
   const carId='car-'+month+'-'+plat;
   const savedScroll=(document.getElementById(carId)||{}).scrollLeft||0;
   save();closeModal();renderPage();
-  const newCar=document.getElementById(carId);
-  if(newCar) newCar.scrollLeft=savedScroll;
+  requestAnimationFrame(()=>{
+    const newCar=document.getElementById(carId);
+    if(newCar) newCar.scrollLeft=savedScroll;
+  });
+}
+function deletePost(month,plat,idx){
+  if(!confirm('確定刪除這篇貼文？')) return;
+  const key=month+'_'+plat+'_'+idx;
+  // Check if it's an extra post (user-added)
+  const extraPosts=appData.extraMonths?.[month]?.[plat]?.posts;
+  const basePosts=appData.months?.[month]?.[plat]?.posts;
+  if(extraPosts&&idx>=( basePosts?.length||0)){
+    const extraIdx=idx-(basePosts?.length||0);
+    extraPosts.splice(extraIdx,1);
+    // Re-index overrides for extra posts after deleted one
+    const newOverrides={};
+    Object.entries(appData.postOverrides||{}).forEach(([k,v])=>{
+      const [m,p,i]=k.split('_'); 
+      if(m+'_'+p+'_'+i===key)return; // skip deleted
+      newOverrides[k]=v;
+    });
+    appData.postOverrides=newOverrides;
+  }else{
+    // Base post: mark as deleted via override
+    if(!appData.postOverrides) appData.postOverrides={};
+    appData.postOverrides[key]=Object.assign(appData.postOverrides[key]||{},{_deleted:true});
+  }
+  // Clear image if any
+  if(appData.images?.[key]) delete appData.images[key];
+  save();closeModal();renderPage();
 }
 
 // ── NEW POST ──────────────────────────────────────────
@@ -1401,4 +1501,13 @@ document.getElementById('editBtn').innerHTML=`${IC.pencil} 編輯模式`;
 buildTabs();
 renderPage();
 syncFromCloud();
+window.addEventListener('online',()=>{
+  if(window._pendingSync){
+    window._pendingSync=false;
+    save();
+    showToast('已恢復連線，同步中…');
+  }else{
+    syncFromCloud();
+  }
+});
 </script></body></html>
