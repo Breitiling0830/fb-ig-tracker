@@ -1031,7 +1031,7 @@ function renderOverview(){
         <div class="ov-ph ov-ph-fb"><div class="icon">${IC.fb}</div><h3>Facebook</h3></div>
         <div class="ov-stats">
           <div class="ov-stat"><div class="ov-stat-lbl">瀏覽(自然)</div><div class="ov-stat-val c-fb">${fmtNum(fbD.organicViews)}</div></div>
-          <div class="ov-stat"><div class="ov-stat-lbl">觸及(含廣告)</div><div class="ov-stat-val">${fmtNum(fbD.adReach)}</div></div>
+          <div class="ov-stat"><div class="ov-stat-lbl">觸及(自然)</div><div class="ov-stat-val">${fmtNum(fbD.organicReach)}</div></div>
           <div class="ov-stat"><div class="ov-stat-lbl">互動數(含廣告)</div><div class="ov-stat-val">${fmtNum(fbD.adInteractions)}</div></div>
           <div class="ov-stat"><div class="ov-stat-lbl">互動率</div><div class="ov-stat-val">${fmtRate(fbRate)}</div></div>
           <div class="ov-stat"><div class="ov-stat-lbl">粉絲</div><div class="ov-stat-val">${fmtNum(fbD.followers)}</div></div>
@@ -1041,7 +1041,7 @@ function renderOverview(){
         <div class="ov-ph ov-ph-ig"><div class="icon">${IC.ig}</div><h3>Instagram</h3></div>
         <div class="ov-stats">
           <div class="ov-stat"><div class="ov-stat-lbl">瀏覽(自然)</div><div class="ov-stat-val c-ig">${fmtNum(igD.organicViews)}</div></div>
-          <div class="ov-stat"><div class="ov-stat-lbl">觸及(含廣告)</div><div class="ov-stat-val">${fmtNum(igD.adReach)}</div></div>
+          <div class="ov-stat"><div class="ov-stat-lbl">觸及(自然)</div><div class="ov-stat-val">${fmtNum(igD.organicReach)}</div></div>
           <div class="ov-stat"><div class="ov-stat-lbl">互動數(含廣告)</div><div class="ov-stat-val">${fmtNum(igD.adInteractions)}</div></div>
           <div class="ov-stat"><div class="ov-stat-lbl">互動率</div><div class="ov-stat-val">${fmtRate(igRate)}</div></div>
           <div class="ov-stat"><div class="ov-stat-lbl">粉絲</div><div class="ov-stat-val">${fmtNum(igD.followers)}</div></div>
@@ -1135,7 +1135,7 @@ function renderOverview(){
   <div class="charts-grid">
     <div class="chart-card"><h3>瀏覽次數（自然）</h3><p>FB vs IG 每月自然瀏覽次數</p><canvas id="cViews" height="200"></canvas></div>
     <div class="chart-card"><h3>互動率</h3><p>互動數(含廣告) ÷ 觸及人數(含廣告)</p><canvas id="cRate" height="200"></canvas></div>
-    <div class="chart-card"><h3>觸及人數（含廣告）</h3><p>FB vs IG 每月含廣告觸及人數</p><canvas id="cFol" height="200"></canvas></div>
+    <div class="chart-card"><h3>觸及人數（自然）</h3><p>FB vs IG 每月自然觸及人數</p><canvas id="cFol" height="200"></canvas></div>
     <div class="chart-card"><h3>互動數（含廣告）</h3><p>FB vs IG 每月含廣告互動數</p><canvas id="cInter" height="200"></canvas></div>
   </div>`;
   document.getElementById('main').innerHTML=html;
@@ -1144,8 +1144,8 @@ function renderOverview(){
     const getRate=d=>{const r=d.adInteractions&&d.adReach?+(d.adInteractions/d.adReach*100).toFixed(2):null;return r};
     const defs=[
       {id:'cViews',fb:chartMonths.map(m=>getPlatformOv(m,'fb').organicViews),ig:chartMonths.map(m=>getPlatformOv(m,'ig').organicViews)},
-      {id:'cRate',fb:chartMonths.map(m=>getRate(getPlatformOv(m,'fb'))),ig:chartMonths.map(m=>getRate(getPlatformOv(m,'ig')))},
-      {id:'cFol',fb:chartMonths.map(m=>getPlatformOv(m,'fb').adReach),ig:chartMonths.map(m=>getPlatformOv(m,'ig').adReach)},
+      {id:'cRate',pct:true,fb:chartMonths.map(m=>getRate(getPlatformOv(m,'fb'))),ig:chartMonths.map(m=>getRate(getPlatformOv(m,'ig')))},
+      {id:'cFol',fb:chartMonths.map(m=>getPlatformOv(m,'fb').organicReach),ig:chartMonths.map(m=>getPlatformOv(m,'ig').organicReach)},
       {id:'cInter',fb:chartMonths.map(m=>getPlatformOv(m,'fb').adInteractions),ig:chartMonths.map(m=>getPlatformOv(m,'ig').adInteractions)},
     ];
     defs.forEach(d=>{
@@ -1155,8 +1155,15 @@ function renderOverview(){
         {label:'FB',data:d.fb,borderColor:'#3AC2CF',backgroundColor:'rgba(58,194,207,.12)',tension:.35,fill:true,pointRadius:4,pointHoverRadius:6,borderWidth:2},
         {label:'IG',data:d.ig,borderColor:'#F04D29',backgroundColor:'rgba(240,77,41,.08)',tension:.35,fill:true,pointRadius:4,pointHoverRadius:6,borderWidth:2},
       ]},options:{responsive:true,interaction:{mode:'index',intersect:false},
-        plugins:{legend:{position:'top',labels:{font:{size:12},boxWidth:14}},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y?.toLocaleString()||'—'}`}}},
-        scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{grid:{color:'rgba(0,0,0,.04)'},ticks:{font:{size:11}}}}}});
+        plugins:{legend:{position:'top',labels:{font:{size:12},boxWidth:14}},tooltip:{callbacks:{label:c=>{
+          const v=c.parsed.y;
+          if(v==null)return'—';
+          const prev=c.dataset.data[c.dataIndex-1];
+          const pct=(prev!=null&&prev!==0)?((v-prev)/Math.abs(prev)*100):null;
+          const pctStr=pct!=null?` (${pct>=0?'+':''}${pct.toFixed(1)}%)`:'';
+          return`${c.dataset.label}: ${d.pct?v+'%':v.toLocaleString()}${pctStr}`;
+        }}}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{grid:{color:'rgba(0,0,0,.04)'},ticks:{font:{size:11},callback:v=>d.pct?v+'%':v.toLocaleString()}}}}});
     });
     // Follower growth charts (actual vs target, includes future months)
     const gcMonths=getAllChartMonths();
@@ -1177,7 +1184,15 @@ function renderOverview(){
         {label:'目標',data:d.target,borderColor:d.targetColor,backgroundColor:'transparent',tension:.35,fill:false,pointRadius:3,pointHoverRadius:5,borderWidth:2,borderDash:[5,4],spanGaps:true},
       ]},options:{responsive:true,interaction:{mode:'index',intersect:false},
         plugins:{legend:{position:'top',labels:{font:{size:12},boxWidth:14}},
-          tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y!=null?c.parsed.y.toLocaleString():'—'}`}}},
+          tooltip:{callbacks:{label:c=>{
+          const v=c.parsed.y;
+          if(v==null)return'—';
+          const isActual=c.dataset.label==='實際粉絲';
+          const prev=isActual?c.dataset.data[c.dataIndex-1]:null;
+          const pct=(prev!=null&&prev!==0)?((v-prev)/Math.abs(prev)*100):null;
+          const pctStr=pct!=null?` (${pct>=0?'+':''}${pct.toFixed(1)}%)`:'';
+          return`${c.dataset.label}: ${v.toLocaleString()}${isActual?pctStr:''}`;
+        }}}},
         scales:{x:{grid:{display:false},ticks:{font:{size:10},maxRotation:45}},
           y:{grid:{color:'rgba(0,0,0,.04)'},ticks:{font:{size:11},callback:v=>v>=10000?(v/10000).toFixed(1)+'萬':v.toLocaleString()}}}}});
     });
